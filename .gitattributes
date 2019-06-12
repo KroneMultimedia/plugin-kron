@@ -1,0 +1,10 @@
+# Auto detect text files and perform LF normalization
+* text eol=lf
+
+/.gitattributes export-ignore
+/.gitignore export-ignore
+/README.md export-ignore
+/CHANGELOG.md export-ignore
+/phpunit.xml.dist export-ignore
+*.png binary
+*.jpg binary
