@@ -5,7 +5,6 @@
 use KMM\KRoN\Core;
 use phpmock\MockBuilder;
 
-
 class TestKron extends \WP_UnitTestCase
 {
     /**
@@ -13,6 +12,22 @@ class TestKron extends \WP_UnitTestCase
     */
     public function dummy()
     {
-        $this->assertNull(null);
+
+      
+        wp_schedule_single_event(time()+20, 'single_shot_event', []);
+        exit;
+        return;
+        $time = strtotime('00:00:00');
+        sleep(5);
+      
+
+        return;
+
+        wp_schedule_event($time, 'daily', 'krn_delete_ngen_articles_preview_images1');
+        wp_schedule_single_event($time, 'single_shot_event', []);
+        wp_schedule_single_event($time, 'single_shot_event', []);
+        if (! wp_next_scheduled('krn_delete_ngen_articles_preview_images')) {
+            wp_schedule_event($time, 'daily', 'krn_delete_ngen_articles_preview_images');
+        }
     }
 }
