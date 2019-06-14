@@ -24,38 +24,47 @@ class Core
 
     public function krn_kron_demo()
     {
-        //Get all single
-        while(true) {
-          $this->debug("SLEEP");
-        $gmt_time = microtime( true );
-
-          $results = $this->wpdb->get_results("SELECT * from " . $this->getTableName());
-         // . " WHERE `timestamp` >= " . $gmt_time);
-        foreach ($results as $cron) {
-          if($cron->timestamp >= $gmt_time) {
-            continue;
-          }
-            $schedule = $cron->schedule;
-            $hook = $cron->hook;
-            $args = unserialize($cron->args);
-            $timestamp = $cron->timestamp;
-            if($schedule == "") $schedule = false;
+        //wp_schedule_single_event(time()+10, 'single_shot_event', []);
 
 
-            $this->debug("RUN: " . $hook . " " . serialize($args));
-            if ($schedule != false) {
-
-            $this->debug("RESCHEDULE:" . $hook . "->" . print_r($schedule, true));
-                $new_args = array( $timestamp, $schedule, $hook, $args );
-                call_user_func_array('wp_reschedule_event', $new_args);
-            }
-            wp_unschedule_event($timestamp, $hook, $args);
-
-
-            do_action_ref_array($hook, $args);
-
+        $time = time()+10;
+        $exi = false;
+        //$exi = wp_next_scheduled('sched_event');
+        if (!$exi) {
+          //  wp_schedule_event($time, '10s', 'sched_event');
         }
-        sleep(1);
+
+       // wp_schedule_single_event(time()+2, "krn_post_offline", [1939111]);
+        //Get all single
+        while (true) {
+            $gmt_time = time();// microtime( true );
+
+            //FIXME paginate: https://wordpress.stackexchange.com/questions/190625/wordpress-get-pagination-on-wpdb-get-results/190632
+            $results = $this->wpdb->get_results("SELECT * from " . $this->getTableName() . " where (`interval` = -1 and `timestamp` <= " . $gmt_time . ") OR (`interval` > -1 and `timestamp`+`interval` <= " . $gmt_time . ")");
+            foreach ($results as $cron) {
+                $this->debug("loop:" . $cron->hook . " =" . $cron->timestamp . " = " . $gmt_time);
+                $schedule = $cron->schedule;
+                $hook = $cron->hook;
+                $interval = $cron->interval;
+                $args = unserialize($cron->args);
+                $timestamp = $cron->timestamp;
+                if ($schedule == "") {
+                    $schedule = false;
+                }
+
+                $this->run_hook($hook, $args, $timestamp, $schedule, $interval);
+            }
+
+            sleep(1);
+        }
+    }
+    public function run_hook($hook, $args, $timestamp, $schedule, $interval)
+    {
+        $this->debug("RUN: " . $hook . " " . serialize($args));
+        wp_unschedule_event($timestamp, $hook, $args);
+        do_action_ref_array($hook, $args);
+        if($schedule) {
+          wp_schedule_event(time()+$interval, $schedule, $hook, $args);
         }
     }
     public function registerCLI()
@@ -100,6 +109,13 @@ class Core
         add_filter('pre_get_ready_cron_jobs', [$this, "pre_get_ready_cron_jobs"], 0, 1);
 
         add_filter('option_cron', [$this, 'option_cron'], 0, 1);
+
+          add_filter('cron_schedules', function($schedules) {
+            $schedules['60s'] = ["interval" => 60, "display" => "Every Minute"];
+            $schedules['1s'] = ["interval" => 1, "display" => "Every Second"];
+            $schedules['10s'] = ["interval" => 10, "display" => "Every 10 Seconds"];
+            return $schedules;
+          });
     }
     public function option_cron($v)
     {
@@ -118,17 +134,16 @@ class Core
     }
     public function debug($msg)
     {
-      if ( defined( 'WP_CLI' ) && WP_CLI ) {
-          \WP_CLI::log($msg);
-      } else {
-
-        echo $msg . "\n";
-        @ob_flush();
-      }
-        
+        if (defined('WP_CLI') && WP_CLI) {
+            \WP_CLI::log(date("d.m.Y H:i:s # ") . $msg);
+        } else {
+            //echo $msg . "\n";
+        //@ob_flush();
+        }
     }
     public function pre_schedule_event($pre = null, $event = null)
     {
+        $this->debug("pre_schedule_event");
         $this->debug("Register Hook -> " .  $event->hook);
         if (isset($event->schedule) && $event->schedule != "") {
             $this->debug("\t Schedule -> " .  $event->schedule);
@@ -191,6 +206,7 @@ class Core
 
     public function pre_unschedule_event($pre, $timestamp, $hook, $args)
     {
+        $this->debug("pre_unschedule_event");
         $stmt = "DELETE FROM " . $this->getTableName() . " where hook = %s AND argkey= %s AND `timestamp` = %d";
         $sql = $this->wpdb->prepare($stmt, $hook, md5(serialize($args)), $timestamp);
 
@@ -201,6 +217,7 @@ class Core
 
     public function pre_clear_scheduled_hook($pre, $hook, $args)
     {
+        $this->debug("pre_clear_scheduled_hook");
         $sql = $this->wpdb->prepare("DELETE FROM " . $this->getTableName() . " where hook = %s AND argkey= %s", $hook, md5(serialize($args)));
         $this->wpdb->query($sql);
         return false;
@@ -208,12 +225,15 @@ class Core
 
     public function pre_unschedule_hook($pre, $hook)
     {
+        $this->debug("pre_unschedule_hook");
         $sql = $this->wpdb->prepare("DELETE FROM " . $this->getTableName() . " where hook = %s AND argkey= %s", $hook, md5(serialize($args)));
         $this->wpdb->query($sql);
         return false;
     }
     public function pre_get_scheduled_event($pre, $hook, $args, $timestamp)
     {
+        $this->debug("pre_get_scheduled_event: " . $hook);
+        //FIXME get current event or next one
         $results = $this->wpdb->get_results($this->wpdb->prepare("select * from " . $this->getTableName() . " where hook = %s AND argkey= %s limit 1", $hook, md5(serialize($args))));
         if (count($results) > 0) {
             $e = $results[0];
@@ -234,6 +254,7 @@ class Core
 
     public function pre_get_ready_cron_jobs()
     {
+        $this->debug("pre_get_ready_cron_jobs");
         return [];
     }
 }
