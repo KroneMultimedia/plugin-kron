@@ -2,6 +2,19 @@
 
 namespace KMM\KRoN;
 
+use KMM\KRoN\CronJobMessage;
+use KMM\KRoN\CronJobMessageHandler;
+use Symfony\Component\Messenger\Envelope;
+use Symfony\Component\Messenger\Transport\Sync\SyncTransport;
+use Symfony\Component\Messenger\MessageBus;
+use Symfony\Component\Messenger\Middleware\HandleMessageMiddleware;
+use Symfony\Component\Messenger\Handler\HandlersLocator;
+
+use Symfony\Component\Messenger\Transport\AmqpExt\AmqpTransport;
+use Symfony\Component\Messenger\Transport\AmqpExt\Connection;
+use Symfony\Component\Messenger\Worker;
+use Symfony\Component\Messenger\Transport\AmqpExt\AmqpReceiver;
+
 class Core
 {
     private $plugin_dir;
@@ -27,7 +40,24 @@ class Core
         //wp_schedule_single_event(time()+10, 'single_shot_event', []);
 
         
-
+        $conn  = new Connection(["host" => "mq"], ["name" => "kron"],["krn_queue1" => "krn_queue1"]);
+        $envelope = new Envelope(new CronJobMessage(["a" => 1]));
+        $bus = new MessageBus([new CronJobMessageHandler()]);
+        $transport = new AmqpTransport($conn);
+        $transport->send($envelope);
+        $transport->send($envelope);
+        $transport->send($envelope);
+				
+				$worker = new Worker([new AmqpReceiver($conn)], $bus);
+				$worker->run();
+/*
+				foreach($transport->get() as $msg) {
+						var_dump($msg);
+						$transport->ack($msg);
+				}
+        exit;
+*/
+exit;
         $timeStats = strtotime("00:00:00");
 
         if (! wp_next_scheduled('krn_demo')) {
@@ -133,7 +163,6 @@ class Core
         if (defined('WP_CLI') && WP_CLI) {
             \WP_CLI::log(date("d.m.Y H:i:s # ") . $msg);
         } else {
-
         }
     }
     public function pre_schedule_event($pre = null, $event = null)
