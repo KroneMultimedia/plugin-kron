@@ -2,6 +2,8 @@
 
 namespace KMM\KRoN;
 
+use League\CLImate\CLImate;
+
 class Core
 {
     private $plugin_dir;
@@ -13,32 +15,53 @@ class Core
         $this->plugin_dir = plugin_dir_url(__FILE__) . '../';
         $this->checkTable();
         $this->add_filters();
+        $this->climate = new \League\CLImate\CLImate;
 
 
         if (defined('WP_CLI') && WP_CLI) {
             $this->registerCLI();
         }
 
+        //inject custom logger
+        if (defined('WP_CLI') && WP_CLI) {
+          $this->logger = new \WP_CLI\Loggers\Execution();
+          \WP_CLI::set_logger($this->logger);
+        }
+
         $this->i18n = $i18n;
     }
 
-    public function krn_kron_demo()
+    public function output($out)
+    {
+        if (defined('WP_CLI') && WP_CLI) {
+            $d = date("d.m.Y H:i:s");
+            $this->climate->to(["buffer"])->out("<dim><underline>{$d}</underline></dim> > " . $out);
+
+
+            @ob_end_flush();
+            echo $this->climate->output->get("buffer")->get();
+            @ob_flush();
+
+            $this->climate->output->get('buffer')->clean();
+        }
+    }
+    public function krn_work_jobs()
     {
         //wp_schedule_single_event(time()+10, 'single_shot_event', []);
 
         
 
-        $timeStats = strtotime("00:00:00");
-
-        if (! wp_next_scheduled('krn_demo')) {
-            wp_schedule_event($timeStats, 'daily', 'krn_demo');
-        }
-
         while (true) {
             $gmt_time = time();// microtime( true );
 
+
+            $total = $this->wpdb->get_results("SELECT count(1) as cnt from " . $this->getTableName());
+
+            $total = $total[0]->cnt;
             //FIXME paginate: https://wordpress.stackexchange.com/questions/190625/wordpress-get-pagination-on-wpdb-get-results/190632
             $results = $this->wpdb->get_results("SELECT * from " . $this->getTableName() . " where (`interval` = -1 and `timestamp` <= " . $gmt_time . ") OR (`interval` > -1 and `timestamp`+`interval` <= " . $gmt_time . ")");
+            $jobs = count($results);
+            $this->output("Working on <bold>{$jobs}</bold>/{$total} Jobs 🚧");
             foreach ($results as $cron) {
                 $this->debug("loop:" . $cron->hook . " =" . $cron->timestamp . " = " . $gmt_time);
                 $schedule = $cron->schedule;
@@ -53,21 +76,42 @@ class Core
                 $this->run_hook($hook, $args, $timestamp, $schedule, $interval);
             }
 
-            sleep(1);
+            sleep(10);
         }
     }
     public function run_hook($hook, $args, $timestamp, $schedule, $interval)
     {
         $this->debug("RUN: " . $hook . " " . serialize($args));
+        $curTime = microtime(true);
+
+        ob_start();
         wp_unschedule_event($timestamp, $hook, $args);
         do_action_ref_array($hook, $args);
         if ($schedule) {
             wp_schedule_event(time()+$interval, $schedule, $hook, $args);
         }
+        $cnt = ob_get_contents();
+        $lines_echo = explode("\n",  $cnt);
+        $lines_stdout = explode("\n",  $this->logger->stdout);
+        $lines_stderr = explode("\n",  $this->logger->stderr);
+        $lines = array_merge($lines_stderr, $lines_stdout, $lines_echo);
+        $lines = array_filter($lines, function($el) {
+          if($el == "") return false;
+          return true;
+        });
+        $this->logger->stdout = "";
+        $this->logger->stderr = "";
+        @ob_end_clean();
+        $timeConsumed = round(microtime(true) - $curTime, 3)*1000;
+        $this->output("<cyan><bold>{$hook}</bold></cyan> done in {$timeConsumed} ms ✅");
+        $this->output("\t<underline>Output</underline>: ");
+        foreach($lines as $line) {
+          $this->output("\t " . $line);
+        }
     }
     public function registerCLI()
     {
-        \WP_CLI::add_command('krn_kron', [$this, 'krn_kron_demo']);
+        \WP_CLI::add_command('krn_kron', [$this, 'krn_work_jobs']);
     }
     private function getTableName()
     {
@@ -112,6 +156,11 @@ class Core
             $schedules['10s'] = ["interval" => 10, "display" => "Every 10 Seconds"];
             return $schedules;
         });
+        add_action("ddd", function() {
+          echo "ASDF";
+          \WP_CLI::log("WPCLI LOG output");
+
+        });
     }
     public function option_cron($v)
     {
@@ -130,10 +179,8 @@ class Core
     }
     public function debug($msg)
     {
-        if (defined('WP_CLI') && WP_CLI) {
-            \WP_CLI::log(date("d.m.Y H:i:s # ") . $msg);
-        } else {
-
+        if (getenv("KRN_KRON_DEBUG") && getenv("KRN_KRON_DEBUG") == "TRUE") {
+            $this->output("<magenta>DEBUG</magenta>:" . $msg);
         }
     }
     public function pre_schedule_event($pre = null, $event = null)
@@ -206,13 +253,12 @@ class Core
         $sql = $this->wpdb->prepare($stmt, $hook, md5(serialize($args)), $timestamp);
 
         $this->wpdb->query($sql);
-        \WP_CLI::log($sql);
         return false;
     }
 
     public function pre_clear_scheduled_hook($pre, $hook, $args)
     {
-        $this->debug("pre_clear_scheduled_hook -> ", $hook);
+        $this->debug("pre_clear_scheduled_hook -> " .  $hook);
         $sql = $this->wpdb->prepare("DELETE FROM " . $this->getTableName() . " where hook = %s AND argkey= %s", $hook, md5(serialize($args)));
         $this->wpdb->query($sql);
         return false;
@@ -242,7 +288,6 @@ class Core
             'interval'  => $e->interval,
             'args'      => $args,
             );
-            //$this->debug("GOT: " . print_r($event, true));
             return $event;
         }
         return false;
