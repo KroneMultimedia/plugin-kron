@@ -37,7 +37,7 @@ execute the following command:
 wp krn_kron
 ```
 
-![screenshot3](screenshot1.png)
+![screenshot3](screen1.png)
 
 
 # Convert
