@@ -25,7 +25,7 @@ RoadMap:
 
 
 
-> there is now warranty that this will NOT blow your WP installation
+> there is no warranty that this will NOT blow your WP installation
 
 
 
