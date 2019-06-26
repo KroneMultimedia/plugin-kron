@@ -1,6 +1,5 @@
 <?php
 /**
-* @covers KMM\Dummy\Core
 */
 use KMM\KRoN\Core;
 use phpmock\MockBuilder;
