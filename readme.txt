@@ -11,13 +11,7 @@ this plugin, disables the default cron implementation.
 and ships with a WP-CLI based command, jobs are not stored in the options table.
 
 
-to use it:
-  - enable the plugin
-  - run the wp-cli command on a server/container (can be a seperat one)
-    - `wp krn_kron`
-
-> to convert current cron jobs run `wp krn_kron_conver`
-
+Source code is managed at http://github.com/KroneMultiMedia/plugin-kron
 
 == Changelog ==
 = 0.1.2 =
