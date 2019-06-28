@@ -63,7 +63,6 @@ plugin should be in `$PWD/plugins/krn-kron`  after initial `up -d` you'd need to
 
 ![screenshot4](screen2.png)
 
-
 ```yaml
 version: '3.3'
 services:
@@ -77,10 +76,9 @@ services:
        MYSQL_DATABASE: wordpress
        MYSQL_USER: wordpress
        MYSQL_PASSWORD: wordpress
-
-	 wordpress:
-		 volumes:
-		   - "./plugins/:/var/www/html/wp-content/plugins/my-plugin:ro"
+   wordpress:
+     volumes:
+        - "./plugins/:/var/www/html/wp-content/plugins/my-plugin:ro"
      depends_on:
        - db
      image: wordpress:latest
@@ -91,44 +89,41 @@ services:
        WORDPRESS_DB_HOST: db:3306
        WORDPRESS_DB_USER: wordpress
        WORDPRESS_DB_PASSWORD: wordpress
-			 WORDPRESS_DB_NAME: wordpress
-			 KRN_KRON_AMQP_DSN: "amqp://mq"
-
-  wordpress_kron_producer:
+       WORDPRESS_DB_NAME: wordpress
+       KRN_KRON_AMQP_DSN: "amqp://mq"
+   wordpress_kron_producer:
      depends_on:
        - db
-		 image: wordpress:latest
-		 command: "wp krn_kron_publisher"
- 		 volumes:
-		   - "./plugins/:/var/www/html/wp-content/plugins/my-plugin:ro"
+     image: wordpress:latest
+     command: "wp krn_kron_publisher"
+     volumes:
+      - "./plugins/:/var/www/html/wp-content/plugins/my-plugin:ro"
      restart: always
      environment:
        WORDPRESS_DB_HOST: db:3306
        WORDPRESS_DB_USER: wordpress
        WORDPRESS_DB_PASSWORD: wordpress
-			 WORDPRESS_DB_NAME: wordpress
-			 KRN_KRON_AMQP_DSN: "amqp://mq"
+       WORDPRESS_DB_NAME: wordpress
+       KRN_KRON_AMQP_DSN: "amqp://mq"
 
-  wordpress_kron_consumer:
+   wordpress_kron_consumer:
      depends_on:
        - db
-		 image: wordpress:latest
-		 command: "wp krn_kron_consumer"
- 		 volumes:
-		   - "./plugins/:/var/www/html/wp-content/plugins/my-plugin:ro"
+     image: wordpress:latest
+     command: "wp krn_kron_consumer"
+     volumes:
+       - "./plugins/:/var/www/html/wp-content/plugins/my-plugin:ro"
      restart: always
      environment:
        WORDPRESS_DB_HOST: db:3306
        WORDPRESS_DB_USER: wordpress
        WORDPRESS_DB_PASSWORD: wordpress
-			 WORDPRESS_DB_NAME: wordpress
-			 KRN_KRON_AMQP_DSN: "amqp://mq"
+       WORDPRESS_DB_NAME: wordpress
+       KRN_KRON_AMQP_DSN: "amqp://mq"
 
-  mq:
+   mq:
      image: rabbitmq:latest
      restart: always
-
-
 
 volumes:
     db_data: {}
