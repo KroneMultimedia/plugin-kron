@@ -12,6 +12,9 @@
     "composer/installers": "~1.0",
     "league/climate": "^3.5"
   },
+  "suggest": {
+    "enqueue/amqp-ext": "For support of RabbitMQ"
+  },
   "autoload": {
     "classmap": [
       "src/"

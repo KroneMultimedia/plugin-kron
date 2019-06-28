@@ -2,6 +2,8 @@
 
 namespace KMM\KRoN;
 
+use KMM\KRoN\PubSubManager;
+
 class Core
 {
     private $plugin_dir;
@@ -12,6 +14,7 @@ class Core
         $this->wpdb = $wpdb;
         $this->plugin_dir = plugin_dir_url(__FILE__) . '../';
         $this->checkTable();
+        $this->manager = new PubSubManager($this);
         $this->add_filters();
         $this->climate = new \League\CLImate\CLImate();
 
@@ -65,34 +68,41 @@ class Core
         $this->output('Converted <bold><green>' . $count . '</bold></green> Jobs from standard cron');
     }
 
+    public function _get_jobs()
+    {
+        $gmt_time = time(); // microtime( true );
+
+        $total = $this->wpdb->get_results('SELECT count(1) as cnt from ' . $this->getTableName());
+
+        $total = $total[0]->cnt;
+        //FIXME paginate: https://wordpress.stackexchange.com/questions/190625/wordpress-get-pagination-on-wpdb-get-results/190632
+        $results = $this->wpdb->get_results('SELECT * from ' . $this->getTableName() . ' where (`interval` = -1 and `timestamp` <= ' . $gmt_time . ') OR (`interval` > -1 and `timestamp`+`interval` <= ' . $gmt_time . ')');
+      
+        return (object)["total" => $total, "jobs" => $results, "count" => count($results)];
+    }
+    public function _work_jobs($jobs)
+    {
+        $this->output("Working on <bold>{$jobs->count}</bold>/{$jobs->total} Jobs 🚧");
+        foreach ($jobs->jobs as $cron) {
+            $schedule = $cron->schedule;
+            $hook = $cron->hook;
+            $interval = $cron->interval;
+            $args = unserialize($cron->args);
+            $timestamp = $cron->timestamp;
+            if ($schedule == '') {
+                $schedule = false;
+            }
+
+            $this->run_hook($hook, $args, $timestamp, $schedule, $interval);
+        }
+    }
     public function krn_work_jobs()
     {
         //wp_schedule_single_event(time()+10, 'single_shot_event', []);
 
         while (true) {
-            $gmt_time = time(); // microtime( true );
-
-            $total = $this->wpdb->get_results('SELECT count(1) as cnt from ' . $this->getTableName());
-
-            $total = $total[0]->cnt;
-            //FIXME paginate: https://wordpress.stackexchange.com/questions/190625/wordpress-get-pagination-on-wpdb-get-results/190632
-            $results = $this->wpdb->get_results('SELECT * from ' . $this->getTableName() . ' where (`interval` = -1 and `timestamp` <= ' . $gmt_time . ') OR (`interval` > -1 and `timestamp`+`interval` <= ' . $gmt_time . ')');
-            $jobs = count($results);
-            $this->output("Working on <bold>{$jobs}</bold>/{$total} Jobs 🚧");
-            foreach ($results as $cron) {
-                $this->debug('loop:' . $cron->hook . ' =' . $cron->timestamp . ' = ' . $gmt_time);
-                $schedule = $cron->schedule;
-                $hook = $cron->hook;
-                $interval = $cron->interval;
-                $args = unserialize($cron->args);
-                $timestamp = $cron->timestamp;
-                if ($schedule == '') {
-                    $schedule = false;
-                }
-
-                $this->run_hook($hook, $args, $timestamp, $schedule, $interval);
-            }
-
+            $jobs = $this->_get_jobs();
+            $this->_work_jobs($jobs);
             sleep(10);
         }
     }
@@ -135,6 +145,8 @@ class Core
     {
         \WP_CLI::add_command('krn_kron', [$this, 'krn_work_jobs']);
         \WP_CLI::add_command('krn_kron_convert', [$this, 'krn_convert']);
+        \WP_CLI::add_command('krn_kron_publisher', [$this->manager, 'publisher']);
+        \WP_CLI::add_command('krn_kron_consumer', [$this->manager, 'consumer']);
     }
 
     private function getTableName()
@@ -187,6 +199,8 @@ class Core
             echo 'ASDF';
             \WP_CLI::log('WPCLI LOG output');
         });
+
+
     }
 
     public function option_cron($v)
