@@ -2,8 +2,6 @@
 
 namespace KMM\KRoN;
 
-use KMM\KRoN\PubSubManager;
-
 class Core
 {
     private $plugin_dir;
@@ -77,9 +75,10 @@ class Core
         $total = $total[0]->cnt;
         //FIXME paginate: https://wordpress.stackexchange.com/questions/190625/wordpress-get-pagination-on-wpdb-get-results/190632
         $results = $this->wpdb->get_results('SELECT * from ' . $this->getTableName() . ' where (`interval` = -1 and `timestamp` <= ' . $gmt_time . ') OR (`interval` > -1 and `timestamp`+`interval` <= ' . $gmt_time . ')');
-      
-        return (object)["total" => $total, "jobs" => $results, "count" => count($results)];
+
+        return (object)['total' => $total, 'jobs' => $results, 'count' => count($results)];
     }
+
     public function _work_jobs($jobs)
     {
         $this->output("Working on <bold>{$jobs->count}</bold>/{$jobs->total} Jobs 🚧");
@@ -96,6 +95,7 @@ class Core
             $this->run_hook($hook, $args, $timestamp, $schedule, $interval);
         }
     }
+
     public function krn_work_jobs()
     {
         //wp_schedule_single_event(time()+10, 'single_shot_event', []);
@@ -199,8 +199,6 @@ class Core
             echo 'ASDF';
             \WP_CLI::log('WPCLI LOG output');
         });
-
-
     }
 
     public function option_cron($v)
