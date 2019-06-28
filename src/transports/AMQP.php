@@ -29,11 +29,11 @@ class AMQP implements TransportInterface
     }
     public function send($message)
     {
-        $msg = $this->amqp->createMessage(serialize($message));
+        $msg = $this->amqp->createMessage(json_encode($message));
         $this->amqp->createProducer()->send($this->queue, $msg);
     }
     public function receiveMessage($message, $consumer) {
-        $job = unserialize($message->getBody());
+        $job = json_decode($message->getBody());
         $this->manager->handle($job);
         $consumer->acknowledge($message);
 
