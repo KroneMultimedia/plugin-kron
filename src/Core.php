@@ -177,6 +177,12 @@ class Core
         //Create It
     }
 
+    private function is_enabled()
+    {
+        $r = apply_filters('krn_kron_enabled', true);
+        return $r;
+    }
+
     private function add_filters()
     {
         add_filter('pre_schedule_event', [$this, 'pre_schedule_event'], -1, 2);
@@ -227,6 +233,9 @@ class Core
 
     public function pre_schedule_event($pre = null, $event = null)
     {
+        if (! $this->is_enabled()) {
+            return false;
+        }
         $this->debug('pre_schedule_event');
         $this->debug('Register Hook -> ' . $event->hook);
         if (isset($event->schedule) && $event->schedule != '') {
@@ -289,6 +298,9 @@ class Core
 
     public function pre_unschedule_event($pre, $timestamp, $hook, $args)
     {
+        if (! $this->is_enabled()) {
+            return false;
+        }
         $this->debug('pre_unschedule_event');
         $stmt = 'DELETE FROM ' . $this->getTableName() . ' where hook = %s AND argkey= %s AND `timestamp` = %d';
         $sql = $this->wpdb->prepare($stmt, $hook, md5(serialize($args)), $timestamp);
@@ -300,6 +312,9 @@ class Core
 
     public function pre_clear_scheduled_hook($pre, $hook, $args)
     {
+        if (! $this->is_enabled()) {
+            return false;
+        }
         $this->debug('pre_clear_scheduled_hook -> ' . $hook);
         $sql = $this->wpdb->prepare('DELETE FROM ' . $this->getTableName() . ' where hook = %s AND argkey= %s', $hook, md5(serialize($args)));
         $this->wpdb->query($sql);
@@ -309,6 +324,9 @@ class Core
 
     public function pre_unschedule_hook($pre, $hook)
     {
+        if (! $this->is_enabled()) {
+            return false;
+        }
         $this->debug('pre_unschedule_hook');
         $sql = $this->wpdb->prepare('DELETE FROM ' . $this->getTableName() . ' where hook = %s AND argkey= %s', $hook, md5(serialize($args)));
         $this->wpdb->query($sql);
@@ -318,6 +336,9 @@ class Core
 
     public function pre_get_scheduled_event($pre, $hook, $args, $timestamp)
     {
+        if (! $this->is_enabled()) {
+            return false;
+        }
         $this->debug('pre_get_scheduled_event: ' . $hook);
         $results = $this->wpdb->get_results($this->wpdb->prepare('select * from ' . $this->getTableName() . ' where hook = %s AND argkey= %s limit 1', $hook, md5(serialize($args))));
         if (count($results) > 0) {
