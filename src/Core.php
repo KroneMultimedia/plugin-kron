@@ -179,7 +179,8 @@ class Core
 
     private function is_enabled()
     {
-        return apply_filters('krn_kron_enabled', true);
+        $r = apply_filters('krn_kron_enabled', true);
+        return $r;
     }
 
     private function add_filters()
