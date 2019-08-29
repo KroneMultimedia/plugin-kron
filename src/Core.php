@@ -307,6 +307,12 @@ class Core
 
         $this->wpdb->query($sql);
 
+        $argserial = md5(serialize($args));
+        $cache_key = "pgse_" . $hook . "_" . $argserial;
+        wp_cache_delete($cache_key, "kron");
+
+
+
         return false;
     }
 
@@ -318,6 +324,10 @@ class Core
         $this->debug('pre_clear_scheduled_hook -> ' . $hook);
         $sql = $this->wpdb->prepare('DELETE FROM ' . $this->getTableName() . ' where hook = %s AND argkey= %s', $hook, md5(serialize($args)));
         $this->wpdb->query($sql);
+
+        $argserial = md5(serialize($args));
+        $cache_key = "pgse_" . $hook . "_" . $argserial;
+        wp_cache_delete($cache_key, "kron");
 
         return false;
     }
@@ -331,6 +341,10 @@ class Core
         $sql = $this->wpdb->prepare('DELETE FROM ' . $this->getTableName() . ' where hook = %s AND argkey= %s', $hook, md5(serialize($args)));
         $this->wpdb->query($sql);
 
+        $argserial = md5(serialize($args));
+        $cache_key = "pgse_" . $hook . "_" . $argserial;
+        wp_cache_delete($cache_key, "kron");
+
         return false;
     }
 
@@ -339,8 +353,17 @@ class Core
         if (! $this->is_enabled()) {
             return false;
         }
+        $is_hit = false;
+        $argserial = md5(serialize($args));
+        $cache_key = "pgse_" . $hook . "_" . $argserial;
+        $evnt = wp_cache_get($cache_key, "kron", false, $is_hit);
+
+        if($is_hit) {
+            return $evnt;
+        }
+
         $this->debug('pre_get_scheduled_event: ' . $hook);
-        $results = $this->wpdb->get_results($this->wpdb->prepare('select * from ' . $this->getTableName() . ' where hook = %s AND argkey= %s limit 1', $hook, md5(serialize($args))));
+        $results = $this->wpdb->get_results($this->wpdb->prepare('select * from ' . $this->getTableName() . ' where hook = %s AND argkey= %s limit 1', $hook, $argserial));
         if (count($results) > 0) {
             $e = $results[0];
             if (! $timestamp) {
@@ -355,6 +378,8 @@ class Core
             'args' => $args,
             ];
 
+
+            wp_cache_set($cache_key, $event, "kron");
             return $event;
         }
 
