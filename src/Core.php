@@ -193,7 +193,9 @@ class Core
         add_filter('pre_get_ready_cron_jobs', [$this, 'pre_get_ready_cron_jobs'], 0, 1);
 
         //add_filter('option_cron', [$this, 'option_cron'], 0, 1);
-
+        add_action('publish_future_post', function($postId) {
+            clean_post_cache($postId);
+        }, -1, 1);
         add_filter('cron_schedules', function ($schedules) {
             $schedules['60s'] = ['interval' => 60, 'display' => 'Every Minute'];
             $schedules['1s'] = ['interval' => 1, 'display' => 'Every Second'];
