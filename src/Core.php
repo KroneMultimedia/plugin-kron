@@ -81,7 +81,7 @@ class Core
 
     public function _work_jobs($jobs)
     {
-        $this->output("Working on <bold>{$jobs->count}</bold>/{$jobs->total} Jobs 🚧");
+        //$this->output("Working on <bold>{$jobs->count}</bold>/{$jobs->total} Jobs 🚧");
         foreach ($jobs->jobs as $cron) {
             $schedule = $cron->schedule;
             $hook = $cron->hook;
