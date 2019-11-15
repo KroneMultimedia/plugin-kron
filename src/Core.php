@@ -156,6 +156,15 @@ class Core
 
     private function checkTable()
     {
+
+        $is_hit = false;
+        $cache_key = sha1("krn_kron_table_v1");
+        wp_cache_get($cache_key, 'kron', false, $is_hit);
+        if ($is_hit) {
+            return true;
+        }
+
+
         //Check if Table exists
         $table_name = $this->getTableName();
         $charset_collate = $this->wpdb->get_charset_collate();
@@ -175,6 +184,8 @@ class Core
             dbDelta($sql);
         }
         //Create It
+
+        wp_cache_set($cache_key, 'SET', 'kron');
     }
 
     private function is_enabled()
