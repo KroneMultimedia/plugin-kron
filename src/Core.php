@@ -23,7 +23,7 @@ class Core
         //inject custom logger
         if (defined('WP_CLI') && WP_CLI) {
             $this->logger = new \WP_CLI\Loggers\Execution();
-            \WP_CLI::set_logger($this->logger);
+            $this->regular_logger = new \WP_CLI\Loggers\Regular(true);
         }
 
         $this->i18n = $i18n;
@@ -109,6 +109,9 @@ class Core
 
     public function run_hook($hook, $args, $timestamp, $schedule, $interval)
     {
+        //Capture output
+        \WP_CLI::set_logger($this->logger);
+
         $this->debug('RUN: ' . $hook . ' ' . serialize($args));
         $curTime = microtime(true);
 
@@ -139,6 +142,7 @@ class Core
         foreach ($lines as $line) {
             $this->output("\t " . $line);
         }
+        \WP_CLI::set_logger($this->regular_logger);
     }
 
     public function registerCLI()
@@ -156,14 +160,12 @@ class Core
 
     private function checkTable()
     {
-
         $is_hit = false;
-        $cache_key = sha1("krn_kron_table_v1");
+        $cache_key = sha1('krn_kron_table_v1');
         wp_cache_get($cache_key, 'kron', false, $is_hit);
         if ($is_hit) {
             return true;
         }
-
 
         //Check if Table exists
         $table_name = $this->getTableName();
@@ -191,6 +193,7 @@ class Core
     private function is_enabled()
     {
         $r = apply_filters('krn_kron_enabled', true);
+
         return $r;
     }
 
@@ -204,7 +207,7 @@ class Core
         add_filter('pre_get_ready_cron_jobs', [$this, 'pre_get_ready_cron_jobs'], 0, 1);
 
         //add_filter('option_cron', [$this, 'option_cron'], 0, 1);
-        add_action('publish_future_post', function($postId) {
+        add_action('publish_future_post', function ($postId) {
             clean_post_cache($postId);
         }, -1, 1);
         add_filter('cron_schedules', function ($schedules) {
@@ -217,6 +220,12 @@ class Core
         add_action('ddd', function () {
             echo 'ASDF';
             \WP_CLI::log('WPCLI LOG output');
+        });
+        add_action('shaautdown', function () {
+            if ($this->logger->stdout !== '') {
+                echo $this->logger->stdout;
+                echo $this->logger->stderr;
+            }
         });
     }
 
@@ -321,10 +330,8 @@ class Core
         $this->wpdb->query($sql);
 
         $argserial = md5(serialize($args));
-        $cache_key = "pgse_" . $hook . "_" . $argserial;
-        wp_cache_delete($cache_key, "kron");
-
-
+        $cache_key = 'pgse_' . $hook . '_' . $argserial;
+        wp_cache_delete($cache_key, 'kron');
 
         return false;
     }
@@ -339,8 +346,8 @@ class Core
         $this->wpdb->query($sql);
 
         $argserial = md5(serialize($args));
-        $cache_key = "pgse_" . $hook . "_" . $argserial;
-        wp_cache_delete($cache_key, "kron");
+        $cache_key = 'pgse_' . $hook . '_' . $argserial;
+        wp_cache_delete($cache_key, 'kron');
 
         return false;
     }
@@ -355,8 +362,8 @@ class Core
         $this->wpdb->query($sql);
 
         $argserial = md5(serialize($args));
-        $cache_key = "pgse_" . $hook . "_" . $argserial;
-        wp_cache_delete($cache_key, "kron");
+        $cache_key = 'pgse_' . $hook . '_' . $argserial;
+        wp_cache_delete($cache_key, 'kron');
 
         return false;
     }
@@ -368,10 +375,10 @@ class Core
         }
         $is_hit = false;
         $argserial = md5(serialize($args));
-        $cache_key = "pgse_" . $hook . "_" . $argserial;
-        $evnt = wp_cache_get($cache_key, "kron", false, $is_hit);
+        $cache_key = 'pgse_' . $hook . '_' . $argserial;
+        $evnt = wp_cache_get($cache_key, 'kron', false, $is_hit);
 
-        if($is_hit) {
+        if ($is_hit) {
             return $evnt;
         }
 
@@ -391,8 +398,8 @@ class Core
             'args' => $args,
             ];
 
+            wp_cache_set($cache_key, $event, 'kron');
 
-            wp_cache_set($cache_key, $event, "kron");
             return $event;
         }
 
