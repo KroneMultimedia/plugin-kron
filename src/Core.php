@@ -150,6 +150,7 @@ class Core
         \WP_CLI::add_command('krn_kron', [$this, 'krn_work_jobs']);
         \WP_CLI::add_command('krn_kron_convert', [$this, 'krn_convert']);
         \WP_CLI::add_command('krn_kron_publisher', [$this->manager, 'publisher']);
+        \WP_CLI::add_command('krn_kron_producer', [$this->manager, 'publisher']);
         \WP_CLI::add_command('krn_kron_consumer', [$this->manager, 'consumer']);
     }
 
