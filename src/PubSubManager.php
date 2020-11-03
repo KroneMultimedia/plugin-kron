@@ -10,17 +10,29 @@ class PubSubManager
     public function __construct($core)
     {
         $this->core = $core;
-        if(defined('KRN_RABBIT_DEMO')) {
+        $dev_mode = false;
+        if (defined('KRN_RABBIT_DEMO') || getenv('KRN_RABBIT_DEMO')) {
+            $dev_mode = true;
+        }
+
+        $this->sleepTime = 10;
+        if (defined('KRN_KRON_SLEEP_TIME')) {
+            $this->sleepTime = KRN_KRON_SLEEP_TIME;
+        }
+        if (getenv('KRN_KRON_SLEEP_TIME')) {
+            $this->sleepTime = getenv('KRN_KRON_SLEEP_TIME');
+        }
+
+        if ($dev_mode) {
             $amqp = new AMQP();
             //Share instance of prod and cons
-            add_filter('krn_kron_get_publisher', function() use ($amqp) {
+            add_filter('krn_kron_get_publisher', function () use ($amqp) {
                 return $amqp;
             }, 10, 1);
-            add_filter('krn_kron_get_consumer', function() use ($amqp) {
+            add_filter('krn_kron_get_consumer', function () use ($amqp) {
                 return $amqp;
             }, 10, 1);
         }
-
     }
 
     public function consumer()
@@ -58,8 +70,8 @@ class PubSubManager
             $this->core->output("the provided result of the filter 'krn_kron_get_publisher' does not implement the TransportInterface");
             exit;
         }
-        $this->publisher->init($this, $this->core);
         $this->publisher = $publisher;
+        $this->publisher->init($this, $this->core);
         while (true) {
             $jobs = $this->core->_get_jobs();
             $this->core->output("Working on <bold>{$jobs->count}</bold>/{$jobs->total} Jobs 🚧");
@@ -71,7 +83,7 @@ class PubSubManager
                 //Re-Scheduling logic is done late once job is processed
                 wp_unschedule_event($cron->timestamp, $cron->hook, unserialize($cron->args));
             }
-            sleep(10);
+            sleep($this->sleepTime);
         }
     }
 }
