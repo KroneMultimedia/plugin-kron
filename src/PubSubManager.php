@@ -2,6 +2,7 @@
 
 namespace KMM\KRoN;
 
+use KMM\KRoN\transports\AMQP;
 use KMM\KRoN\transports\TransportInterface;
 
 class PubSubManager
@@ -9,8 +10,17 @@ class PubSubManager
     public function __construct($core)
     {
         $this->core = $core;
-        //add_filter('krn_kron_get_publisher', [$this, 'get_publisher'], 10, 1);
-        //add_filter('krn_kron_get_consumer', [$this, 'get_consumer'], 10, 1);
+        if(defined('KRN_RABBIT_DEMO')) {
+            $amqp = new AMQP();
+            //Share instance of prod and cons
+            add_filter('krn_kron_get_publisher', function() use ($amqp) {
+                return $amqp;
+            }, 10, 1);
+            add_filter('krn_kron_get_consumer', function() use ($amqp) {
+                return $amqp;
+            }, 10, 1);
+        }
+
     }
 
     public function consumer()
