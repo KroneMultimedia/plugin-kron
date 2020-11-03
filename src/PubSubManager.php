@@ -2,7 +2,6 @@
 
 namespace KMM\KRoN;
 
-use KMM\KRoN\transports\AMQP;
 use KMM\KRoN\transports\TransportInterface;
 
 class PubSubManager
@@ -10,8 +9,8 @@ class PubSubManager
     public function __construct($core)
     {
         $this->core = $core;
-        add_filter('krn_kron_get_publisher', [$this, 'get_publisher'], 10, 1);
-        add_filter('krn_kron_get_consumer', [$this, 'get_consumer'], 10, 1);
+        //add_filter('krn_kron_get_publisher', [$this, 'get_publisher'], 10, 1);
+        //add_filter('krn_kron_get_consumer', [$this, 'get_consumer'], 10, 1);
     }
 
     public function consumer()
@@ -26,25 +25,8 @@ class PubSubManager
             exit;
         }
         $this->consumer = $consumer;
+        $this->consumer->init($this, $this->core);
         $this->consumer->consume();
-    }
-
-    public function get_publisher($publisher)
-    {
-        if (class_exists("\Enqueue\AmqpExt\AmqpConnectionFactory")) {
-            return new AMQP($this, $this->core);
-        }
-
-        return $publisher;
-    }
-
-    public function get_consumer($consumer)
-    {
-        if (class_exists("\Enqueue\AmqpExt\AmqpConnectionFactory")) {
-            return new AMQP($this, $this->core);
-        }
-
-        return $consumer;
     }
 
     public function handle($job)
@@ -66,6 +48,7 @@ class PubSubManager
             $this->core->output("the provided result of the filter 'krn_kron_get_publisher' does not implement the TransportInterface");
             exit;
         }
+        $this->publisher->init($this, $this->core);
         $this->publisher = $publisher;
         while (true) {
             $jobs = $this->core->_get_jobs();
