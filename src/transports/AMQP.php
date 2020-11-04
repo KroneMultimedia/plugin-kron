@@ -2,11 +2,11 @@
 
 namespace KMM\KRoN\transports;
 
-use Enqueue\AmqpExt\AmqpConnectionFactory;
+use Enqueue\AmqpBunny\AmqpConnectionFactory;
 
 class AMQP implements TransportInterface
 {
-    public function __construct($manager, $core)
+    public function __construct()
     {
         $dsn = null;
         if (defined('KRN_KRON_AMQP_DSN')) {
@@ -20,6 +20,10 @@ class AMQP implements TransportInterface
 
         $this->queue = $this->amqp->createQueue('KRON');
         $this->amqp->declareQueue($this->queue);
+    }
+
+    public function init($manager, $core)
+    {
         $this->core = $core;
         $this->manager = $manager;
         $this->core->output('using AMQP Publisher/Consumer 🐰');
