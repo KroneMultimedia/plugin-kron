@@ -13,7 +13,7 @@
     "league/climate": "^3.5"
   },
   "suggest": {
-    "enqueue/amqp-ext": "For support of RabbitMQ"
+    "enqueue/amqp-bunny": "For support of RabbitMQ"
   },
   "autoload": {
     "classmap": [
