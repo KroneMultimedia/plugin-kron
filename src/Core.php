@@ -91,8 +91,11 @@ class Core
             if ($schedule == '') {
                 $schedule = false;
             }
-
-            $this->run_hook($hook, $args, $timestamp, $schedule, $interval);
+            try {
+                $this->run_hook($hook, $args, $timestamp, $schedule, $interval);
+            } catch (\Throwable $exc) {
+                $this->output("<red><bold>{$hook}</red></cyan> 💣 failed with execption:" . $exc->getMessage());
+            }
         }
     }
 
