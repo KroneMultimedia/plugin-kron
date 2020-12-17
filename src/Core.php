@@ -12,11 +12,12 @@ class Core
         $this->wpdb = $wpdb;
         $this->plugin_dir = plugin_dir_url(__FILE__) . '../';
         $this->checkTable();
-        $this->manager = new PubSubManager($this);
+
         $this->add_filters();
         $this->climate = new \League\CLImate\CLImate();
 
         if (defined('WP_CLI') && WP_CLI) {
+            $this->manager = new PubSubManager($this);
             $this->registerCLI();
         }
 
