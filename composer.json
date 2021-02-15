@@ -7,10 +7,18 @@
   "extra": {
     "installer-name": "kmm-kron"
   },
+  "repositories": [
+    {
+      "type": "gitlab",
+      "url": "http://gitlab.krone.at/KRN/KRNJaeger.git"
+    }
+  ],
   "require": {
     "php": ">=7.0.0",
     "composer/installers": "~1.0",
-    "league/climate": "^3.5"
+    "league/climate": "^3.5",
+    "krn/jaeger": "*",
+    "jukylin/jaeger-php": "@dev"
   },
   "suggest": {
     "enqueue/amqp-bunny": "For support of RabbitMQ"
