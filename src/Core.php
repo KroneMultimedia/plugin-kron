@@ -219,6 +219,7 @@ class Core
             $schedules['60s'] = ['interval' => 60, 'display' => 'Every Minute'];
             $schedules['1s'] = ['interval' => 1, 'display' => 'Every Second'];
             $schedules['10s'] = ['interval' => 10, 'display' => 'Every 10 Seconds'];
+            $schedules['1h'] = ['interval' => 3600, 'display' => 'Every hour'];
 
             return $schedules;
         });
