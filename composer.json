@@ -32,7 +32,10 @@
   "config": {
     "gitlab-domains": ["gitlab.krone.at"],
     "github-protocols": ["https"],
-    "secure-http": false
+    "secure-http": false,
+    "allow-plugins": {
+      "composer/installers": true
+    }
   },
   "require-dev": {
     "php-mock/php-mock": "^2.0",
