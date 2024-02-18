@@ -1,3 +1,5 @@
+variables:
+  PHP_CS_FIXER_IGNORE_ENV: "true"
 include:
   - project: 'KRN/CI'
     file: '/gitlab-ci/Wordpress-Github.yml'
