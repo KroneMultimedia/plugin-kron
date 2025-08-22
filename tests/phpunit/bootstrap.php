@@ -1,45 +1,38 @@
 <?php
 /**
- * PHPUnit bootstrap file
- *
- * @package Sample_Plugin
+ * PHPUnit bootstrap file for Kron plugin
  */
 
-
-namespace UNT;
-
-# Fake ENV
+// Basic test environment setup
 define('KRN_HOST_API', 'test-api.krone.at');
 define('WP_HOME', 'test-www.krone.at');
 define('KRN_HOST_MOBIL', 'test-mobil.krone.at');
 define('KRN_IS_TESTING', 1);
 
-class UNTBootstrap {
-  public function __construct() {
-$_tests_dir = getenv( 'WP_TESTS_DIR' );
-if ( ! $_tests_dir ) {
-	$_tests_dir = rtrim( sys_get_temp_dir(), '/\\' ) . '/wordpress-tests-lib';
-}
-if ( ! file_exists( $_tests_dir . '/includes/functions.php' ) ) {
-	echo "Could not find $_tests_dir/includes/functions.php, have you run bin/install-wp-tests.sh ?";
-	exit( 1 );
-}
-// Give access to tests_add_filter() function.
-require_once $_tests_dir . '/includes/functions.php';
-
-
-tests_add_filter( 'muplugins_loaded', [$this, '_manually_load_plugin'] );
-
-require $_tests_dir . '/includes/bootstrap.php';
-  }
-function _manually_load_plugin() {
-	require dirname( dirname( __FILE__ ) ) . '../../kmm-kron.php';
+// Load Composer autoloader
+$composerAutoload = dirname(dirname(__DIR__)) . '/vendor/autoload.php';
+if (file_exists($composerAutoload)) {
+    require_once $composerAutoload;
 }
 
+// Basic WordPress constants and functions for testing
+if (!defined('ABSPATH')) {
+    define('ABSPATH', '/tmp/wordpress/');
 }
 
+if (!defined('WP_CLI')) {
+    define('WP_CLI', true);
+}
 
+// Mock basic WordPress functions that might be needed
+if (!function_exists('add_filter')) {
+    function add_filter($hook, $callback, $priority = 10, $accepted_args = 1) {
+        return true;
+    }
+}
 
-// Start up the WP testing environment.
-
-$unt = new UNTBootstrap();
+if (!function_exists('apply_filters')) {
+    function apply_filters($tag, $value) {
+        return $value;
+    }
+}
