@@ -80,7 +80,7 @@ class PubSubManager
         $this->publisher->init($this, $this->core);
         $consecutive_failures = 0;
         $max_consecutive_failures = 5; // Exit after 5 consecutive failures
-        
+
         while (true) {
             try {
                 // Check database connection before processing jobs
@@ -98,19 +98,19 @@ class PubSubManager
                     //Re-Scheduling logic is done late once job is processed
                     wp_unschedule_event($cron->timestamp, $cron->hook, unserialize($cron->args));
                 }
-                
+
                 // Reset failure counter on successful operation
                 $consecutive_failures = 0;
             } catch (\Exception $e) {
-                $consecutive_failures++;
+                ++$consecutive_failures;
                 $this->core->output('<red>Critical error in publisher: ' . $e->getMessage() . '</red>');
                 $this->core->output('<yellow>Failure ' . $consecutive_failures . '/' . $max_consecutive_failures . '</yellow>');
-                
+
                 if ($consecutive_failures >= $max_consecutive_failures) {
                     $this->core->output('<red>Maximum consecutive failures reached. Exiting for pod restart...</red>');
                     exit(1); // Exit with error code for K8s to detect failure
                 }
-                
+
                 $this->core->output('<yellow>Waiting 30 seconds before retrying...</yellow>');
                 sleep(30);
                 continue;
