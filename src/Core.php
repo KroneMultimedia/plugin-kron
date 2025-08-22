@@ -276,6 +276,12 @@ class Core
     {
         if (defined('WP_CLI') && WP_CLI) {
             global $wpdb;
+            
+            // Check if wpdb is available and properly initialized
+            if (! $wpdb || ! is_object($wpdb)) {
+                return; // Skip if $wpdb is not available
+            }
+            
             if (! $wpdb->check_connection(false)) {
                 $this->output('<yellow>Database connection lost, attempting to reconnect...</yellow>');
 
@@ -295,6 +301,12 @@ class Core
 
     private function safeDbQuery($callback, $retries = 3)
     {
+        // Only use aggressive reconnection and retries in CLI mode
+        if (! (defined('WP_CLI') && WP_CLI)) {
+            // For web requests, just run the callback normally
+            return $callback();
+        }
+
         $attempt = 0;
         while ($attempt < $retries) {
             try {
