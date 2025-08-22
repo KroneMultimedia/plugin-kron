@@ -106,7 +106,7 @@ class Core
     public function krn_work_jobs()
     {
         //wp_schedule_single_event(time()+10, 'single_shot_event', []);
-        
+
         // Mark that Kron consumer is now active
         $this->kron_consumer_active = true;
 
@@ -285,12 +285,12 @@ class Core
     {
         if (defined('WP_CLI') && WP_CLI) {
             global $wpdb;
-            
+
             // Check if wpdb is available and properly initialized
             if (! $wpdb || ! is_object($wpdb)) {
                 return; // Skip if $wpdb is not available
             }
-            
+
             if (! $wpdb->check_connection(false)) {
                 $this->output('<yellow>Database connection lost, attempting to reconnect...</yellow>');
 
