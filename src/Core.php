@@ -109,14 +109,27 @@ class Core
 
         // Mark that Kron consumer is now active
         $this->kron_consumer_active = true;
+        $consecutive_failures = 0;
+        $max_consecutive_failures = 5; // Exit after 5 consecutive failures
 
         while (true) {
             try {
                 $this->checkDatabaseConnection();
                 $jobs = $this->_get_jobs();
                 $this->_work_jobs($jobs);
+                
+                // Reset failure counter on successful operation
+                $consecutive_failures = 0;
             } catch (\Exception $e) {
+                $consecutive_failures++;
                 $this->output('<red>Critical error in job processing: ' . $e->getMessage() . '</red>');
+                $this->output('<yellow>Failure ' . $consecutive_failures . '/' . $max_consecutive_failures . '</yellow>');
+                
+                if ($consecutive_failures >= $max_consecutive_failures) {
+                    $this->output('<red>Maximum consecutive failures reached. Exiting for pod restart...</red>');
+                    exit(1); // Exit with error code for K8s to detect failure
+                }
+                
                 $this->output('<yellow>Waiting 30 seconds before retrying...</yellow>');
                 sleep(30);
                 continue;
@@ -302,6 +315,13 @@ class Core
                     $this->output('<green>Database reconnection successful ✅</green>');
                 } else {
                     $this->output('<red>Database reconnection failed ❌</red>');
+                    
+                    // If we're in active Kron consumer mode, exit so K8s can restart the pod
+                    if ($this->kron_consumer_active) {
+                        $this->output('<red>Exiting process for pod restart...</red>');
+                        exit(1); // Exit with error code for K8s to detect failure
+                    }
+                    
                     throw new \Exception('Failed to reconnect to database');
                 }
             }
