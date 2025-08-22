@@ -5,6 +5,7 @@ namespace KMM\KRoN;
 class Core
 {
     private $plugin_dir;
+    private $kron_consumer_active = false;
 
     public function __construct($i18n)
     {
@@ -105,6 +106,9 @@ class Core
     public function krn_work_jobs()
     {
         //wp_schedule_single_event(time()+10, 'single_shot_event', []);
+
+        // Mark that Kron consumer is now active
+        $this->kron_consumer_active = true;
 
         while (true) {
             try {
@@ -272,10 +276,21 @@ class Core
         }
     }
 
+    public function setKronConsumerActive($active = true)
+    {
+        $this->kron_consumer_active = $active;
+    }
+
     public function checkDatabaseConnection()
     {
         if (defined('WP_CLI') && WP_CLI) {
             global $wpdb;
+
+            // Check if wpdb is available and properly initialized
+            if (! $wpdb || ! is_object($wpdb)) {
+                return; // Skip if $wpdb is not available
+            }
+
             if (! $wpdb->check_connection(false)) {
                 $this->output('<yellow>Database connection lost, attempting to reconnect...</yellow>');
 
@@ -295,6 +310,12 @@ class Core
 
     private function safeDbQuery($callback, $retries = 3)
     {
+        // Only use aggressive reconnection and retries when actually running Kron consumer
+        if (! (defined('WP_CLI') && WP_CLI && $this->kron_consumer_active)) {
+            // For web requests or CLI bootstrap, just run the callback normally
+            return $callback();
+        }
+
         $attempt = 0;
         while ($attempt < $retries) {
             try {
