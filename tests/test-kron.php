@@ -1,16 +1,27 @@
 <?php
 /**
-*/
-use KMM\KRoN\Core;
-use phpmock\MockBuilder;
+ * Simple unit tests for Kron plugin
+ */
 
-class TestKron extends \WP_UnitTestCase
+use PHPUnit\Framework\TestCase;
+
+class TestKron extends TestCase
 {
     /**
-    * @test
-    */
+     * @test
+     */
     public function dummy()
     {
-      $this->assertEquals(1,1);
+        $this->assertEquals(1, 1);
+    }
+
+    /**
+     * @test
+     */
+    public function testBasicPHPFunctionality()
+    {
+        $this->assertTrue(true);
+        $this->assertFalse(false);
+        $this->assertSame('test', 'test');
     }
 }

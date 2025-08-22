@@ -71,13 +71,15 @@ class Core
     {
         $gmt_time = time(); // microtime( true );
 
-        $total = $this->wpdb->get_results('SELECT count(1) as cnt from ' . $this->getTableName());
+        return $this->safeDbQuery(function () use ($gmt_time) {
+            $total = $this->wpdb->get_results('SELECT count(1) as cnt from ' . $this->getTableName());
+            $total = $total[0]->cnt;
 
-        $total = $total[0]->cnt;
-        //FIXME paginate: https://wordpress.stackexchange.com/questions/190625/wordpress-get-pagination-on-wpdb-get-results/190632
-        $results = $this->wpdb->get_results('SELECT * from ' . $this->getTableName() . ' where (`interval` = -1 and `timestamp` <= ' . $gmt_time . ') OR (`interval` > -1 and `timestamp`+`interval` <= ' . $gmt_time . ')');
+            //FIXME paginate: https://wordpress.stackexchange.com/questions/190625/wordpress-get-pagination-on-wpdb-get-results/190632
+            $results = $this->wpdb->get_results('SELECT * from ' . $this->getTableName() . ' where (`interval` = -1 and `timestamp` <= ' . $gmt_time . ') OR (`interval` > -1 and `timestamp`+`interval` <= ' . $gmt_time . ')');
 
-        return (object)['total' => $total, 'jobs' => $results, 'count' => count($results)];
+            return (object)['total' => $total, 'jobs' => $results, 'count' => count($results)];
+        });
     }
 
     public function _work_jobs($jobs)
@@ -105,8 +107,16 @@ class Core
         //wp_schedule_single_event(time()+10, 'single_shot_event', []);
 
         while (true) {
-            $jobs = $this->_get_jobs();
-            $this->_work_jobs($jobs);
+            try {
+                $this->checkDatabaseConnection();
+                $jobs = $this->_get_jobs();
+                $this->_work_jobs($jobs);
+            } catch (\Exception $e) {
+                $this->output('<red>Critical error in job processing: ' . $e->getMessage() . '</red>');
+                $this->output('<yellow>Waiting 30 seconds before retrying...</yellow>');
+                sleep(30);
+                continue;
+            }
             sleep(10);
         }
     }
@@ -175,21 +185,24 @@ class Core
         //Check if Table exists
         $table_name = $this->getTableName();
         $charset_collate = $this->wpdb->get_charset_collate();
-        if ($this->wpdb->get_var("SHOW TABLES LIKE '{$table_name}'") != $table_name) {
-            $sql = "CREATE TABLE $table_name (
-            ID int(12) NOT NULL AUTO_INCREMENT,
-            `hook` text NOT NULL,
-            `timestamp` int(12) NOT NULL,
-            `schedule` text,
-            `args` text,
-            `interval` int(12),
-            `argkey` text,
-            PRIMARY KEY  (ID)
-            )    $charset_collate;";
 
-            require_once(ABSPATH . 'wp-admin/includes/upgrade.php');
-            dbDelta($sql);
-        }
+        $this->safeDbQuery(function () use ($table_name, $charset_collate) {
+            if ($this->wpdb->get_var("SHOW TABLES LIKE '{$table_name}'") != $table_name) {
+                $sql = "CREATE TABLE $table_name (
+                ID int(12) NOT NULL AUTO_INCREMENT,
+                `hook` text NOT NULL,
+                `timestamp` int(12) NOT NULL,
+                `schedule` text,
+                `args` text,
+                `interval` int(12),
+                `argkey` text,
+                PRIMARY KEY  (ID)
+                )    $charset_collate;";
+
+                require_once(ABSPATH . 'wp-admin/includes/upgrade.php');
+                dbDelta($sql);
+            }
+        });
         //Create It
 
         wp_cache_set($cache_key, 'SET', 'kron');
@@ -259,6 +272,47 @@ class Core
         }
     }
 
+    public function checkDatabaseConnection()
+    {
+        if (defined('WP_CLI') && WP_CLI) {
+            global $wpdb;
+            if (! $wpdb->check_connection(false)) {
+                $this->output('<yellow>Database connection lost, attempting to reconnect...</yellow>');
+
+                // Force reconnection
+                $wpdb->close();
+                $wpdb->db_connect(false);
+
+                if ($wpdb->check_connection(false)) {
+                    $this->output('<green>Database reconnection successful ✅</green>');
+                } else {
+                    $this->output('<red>Database reconnection failed ❌</red>');
+                    throw new \Exception('Failed to reconnect to database');
+                }
+            }
+        }
+    }
+
+    private function safeDbQuery($callback, $retries = 3)
+    {
+        $attempt = 0;
+        while ($attempt < $retries) {
+            try {
+                $this->checkDatabaseConnection();
+
+                return $callback();
+            } catch (\Exception $e) {
+                ++$attempt;
+                if ($attempt >= $retries) {
+                    $this->output('<red>Database operation failed after ' . $retries . ' attempts: ' . $e->getMessage() . '</red>');
+                    throw $e;
+                }
+                $this->output('<yellow>Database operation failed, retrying in 2 seconds... (attempt ' . $attempt . '/' . $retries . ')</yellow>');
+                sleep(2);
+            }
+        }
+    }
+
     public function pre_schedule_event($pre = null, $event = null)
     {
         if (! $this->is_enabled()) {
@@ -285,36 +339,42 @@ class Core
         } else {
             $max_timestamp = $event->timestamp + 10 * MINUTE_IN_SECONDS;
         }
-        $results = $this->wpdb->get_results($this->wpdb->prepare('SELECT * FROM `' . $this->getTableName() . '` WHERE `timestamp` >= %d and `timestamp` <= %d and `hook` = %s and `argkey` = %s ORDER BY `timestamp` DESC', $min_timestamp, $max_timestamp, $event->hook, $key));
-        if (count($results) > 0) {
-            $duplicate = true;
-        }
-        if ($duplicate) {
-            $this->debug("\t\t stop DUPLICATE");
 
-            return false;
-        }
+        return $this->safeDbQuery(function () use ($min_timestamp, $max_timestamp, $event, $key) {
+            $results = $this->wpdb->get_results($this->wpdb->prepare('SELECT * FROM `' . $this->getTableName() . '` WHERE `timestamp` >= %d and `timestamp` <= %d and `hook` = %s and `argkey` = %s ORDER BY `timestamp` DESC', $min_timestamp, $max_timestamp, $event->hook, $key));
+            if (count($results) > 0) {
+                $duplicate = true;
+            } else {
+                $duplicate = false;
+            }
 
-        $event = apply_filters('schedule_event', $event);
-        if (! $event) {
-            //a plugin denied this event
-            $this->debug("\t\t stop PLUGIN");
+            if ($duplicate) {
+                $this->debug("\t\t stop DUPLICATE");
 
-            return false;
-        }
+                return false;
+            }
 
-        if (! isset($event->interval) || ! $event->interval) {
-            $event->interval = -1;
-        }
-        if (! isset($event->schedule) || ! $event->schedule) {
-            $event->schedule = '';
-        }
+            $event = apply_filters('schedule_event', $event);
+            if (! $event) {
+                //a plugin denied this event
+                $this->debug("\t\t stop PLUGIN");
 
-        //Insert Event
-        $data = ['timestamp' => $event->timestamp, 'hook' => $event->hook, 'schedule' => $event->schedule, 'args' => serialize($event->args), 'interval' => $event->interval, 'argkey' => md5(serialize($event->args))];
-        $this->wpdb->insert($this->getTableName(), $data, ['%d', '%s', '%s', '%s', '%d', '%s']);
+                return false;
+            }
 
-        return true;
+            if (! isset($event->interval) || ! $event->interval) {
+                $event->interval = -1;
+            }
+            if (! isset($event->schedule) || ! $event->schedule) {
+                $event->schedule = '';
+            }
+
+            //Insert Event
+            $data = ['timestamp' => $event->timestamp, 'hook' => $event->hook, 'schedule' => $event->schedule, 'args' => serialize($event->args), 'interval' => $event->interval, 'argkey' => md5(serialize($event->args))];
+            $this->wpdb->insert($this->getTableName(), $data, ['%d', '%s', '%s', '%s', '%d', '%s']);
+
+            return true;
+        });
     }
 
     /*
@@ -330,10 +390,12 @@ class Core
             return false;
         }
         $this->debug('pre_unschedule_event');
-        $stmt = 'DELETE FROM ' . $this->getTableName() . ' where hook = %s AND argkey= %s AND `timestamp` = %d';
-        $sql = $this->wpdb->prepare($stmt, $hook, md5(serialize($args)), $timestamp);
 
-        $this->wpdb->query($sql);
+        $this->safeDbQuery(function () use ($timestamp, $hook, $args) {
+            $stmt = 'DELETE FROM ' . $this->getTableName() . ' where hook = %s AND argkey= %s AND `timestamp` = %d';
+            $sql = $this->wpdb->prepare($stmt, $hook, md5(serialize($args)), $timestamp);
+            $this->wpdb->query($sql);
+        });
 
         $argserial = md5(serialize($args));
         $cache_key = 'pgse_' . $hook . '_' . $argserial;
@@ -348,8 +410,11 @@ class Core
             return false;
         }
         $this->debug('pre_clear_scheduled_hook -> ' . $hook);
-        $sql = $this->wpdb->prepare('DELETE FROM ' . $this->getTableName() . ' where hook = %s AND argkey= %s', $hook, md5(serialize($args)));
-        $this->wpdb->query($sql);
+
+        $this->safeDbQuery(function () use ($hook, $args) {
+            $sql = $this->wpdb->prepare('DELETE FROM ' . $this->getTableName() . ' where hook = %s AND argkey= %s', $hook, md5(serialize($args)));
+            $this->wpdb->query($sql);
+        });
 
         $argserial = md5(serialize($args));
         $cache_key = 'pgse_' . $hook . '_' . $argserial;
@@ -364,12 +429,14 @@ class Core
             return false;
         }
         $this->debug('pre_unschedule_hook');
-        $sql = $this->wpdb->prepare('DELETE FROM ' . $this->getTableName() . ' where hook = %s AND argkey= %s', $hook, md5(serialize($args)));
-        $this->wpdb->query($sql);
 
-        $argserial = md5(serialize($args));
-        $cache_key = 'pgse_' . $hook . '_' . $argserial;
-        wp_cache_delete($cache_key, 'kron');
+        $this->safeDbQuery(function () use ($hook) {
+            $sql = $this->wpdb->prepare('DELETE FROM ' . $this->getTableName() . ' where hook = %s', $hook);
+            $this->wpdb->query($sql);
+        });
+
+        // Clear all cache entries for this hook
+        wp_cache_flush_group('kron');
 
         return false;
     }
@@ -389,27 +456,30 @@ class Core
         }
 
         $this->debug('pre_get_scheduled_event: ' . $hook);
-        $results = $this->wpdb->get_results($this->wpdb->prepare('select * from ' . $this->getTableName() . ' where hook = %s AND argkey= %s limit 1', $hook, $argserial));
-        if (count($results) > 0) {
-            $e = $results[0];
-            if (! $timestamp) {
-                $timestamp = $e->timestamp + $e->interval;
+
+        return $this->safeDbQuery(function () use ($hook, $argserial, $timestamp, $args, $cache_key) {
+            $results = $this->wpdb->get_results($this->wpdb->prepare('select * from ' . $this->getTableName() . ' where hook = %s AND argkey= %s limit 1', $hook, $argserial));
+            if (count($results) > 0) {
+                $e = $results[0];
+                if (! $timestamp) {
+                    $timestamp = $e->timestamp + $e->interval;
+                }
+
+                $event = (object) [
+                'hook' => $hook,
+                'timestamp' => $timestamp,
+                'schedule' => $e->schedule,
+                'interval' => $e->interval,
+                'args' => $args,
+                ];
+
+                wp_cache_set($cache_key, $event, 'kron');
+
+                return $event;
             }
 
-            $event = (object) [
-            'hook' => $hook,
-            'timestamp' => $timestamp,
-            'schedule' => $e->schedule,
-            'interval' => $e->interval,
-            'args' => $args,
-            ];
-
-            wp_cache_set($cache_key, $event, 'kron');
-
-            return $event;
-        }
-
-        return false;
+            return false;
+        });
     }
 
     public function pre_get_ready_cron_jobs()
