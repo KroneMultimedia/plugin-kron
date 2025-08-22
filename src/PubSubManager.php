@@ -37,6 +37,9 @@ class PubSubManager
 
     public function consumer()
     {
+        // Mark that Kron consumer is now active
+        $this->core->setKronConsumerActive(true);
+
         $consumer = apply_filters('krn_kron_get_consumer', false);
         if (! $consumer) {
             $this->core->output("No Consumer set! please register the 'krn_kron_get_consumer' filter and return a publisher");
@@ -60,6 +63,9 @@ class PubSubManager
 
     public function publisher()
     {
+        // Mark that Kron consumer is now active
+        $this->core->setKronConsumerActive(true);
+
         $jobs = $this->core->_get_jobs();
         $publisher = apply_filters('krn_kron_get_publisher', false);
         if (! $publisher) {
