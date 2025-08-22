@@ -73,15 +73,27 @@ class PubSubManager
         $this->publisher = $publisher;
         $this->publisher->init($this, $this->core);
         while (true) {
-            $jobs = $this->core->_get_jobs();
-            $this->core->output("Working on <bold>{$jobs->count}</bold>/{$jobs->total} Jobs 🚧");
-            foreach ($jobs->jobs as $cron) {
-                //Send it to Message Queue
-                $this->core->output('dispatching: <cyan>' . $cron->hook . '</cyan> 🛫');
-                $this->publisher->send($cron);
-                //remove it from DB table
-                //Re-Scheduling logic is done late once job is processed
-                wp_unschedule_event($cron->timestamp, $cron->hook, unserialize($cron->args));
+            try {
+                // Check database connection before processing jobs
+                if (method_exists($this->core, 'checkDatabaseConnection')) {
+                    $this->core->checkDatabaseConnection();
+                }
+
+                $jobs = $this->core->_get_jobs();
+                $this->core->output("Working on <bold>{$jobs->count}</bold>/{$jobs->total} Jobs 🚧");
+                foreach ($jobs->jobs as $cron) {
+                    //Send it to Message Queue
+                    $this->core->output('dispatching: <cyan>' . $cron->hook . '</cyan> 🛫');
+                    $this->publisher->send($cron);
+                    //remove it from DB table
+                    //Re-Scheduling logic is done late once job is processed
+                    wp_unschedule_event($cron->timestamp, $cron->hook, unserialize($cron->args));
+                }
+            } catch (\Exception $e) {
+                $this->core->output('<red>Critical error in publisher: ' . $e->getMessage() . '</red>');
+                $this->core->output('<yellow>Waiting 30 seconds before retrying...</yellow>');
+                sleep(30);
+                continue;
             }
             sleep($this->sleepTime);
         }

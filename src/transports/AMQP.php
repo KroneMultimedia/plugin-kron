@@ -37,9 +37,20 @@ class AMQP implements TransportInterface
 
     public function receiveMessage($message, $consumer)
     {
-        $job = json_decode($message->getBody());
-        $this->manager->handle($job);
-        $consumer->acknowledge($message);
+        try {
+            // Check database connection before processing job
+            if (method_exists($this->core, 'checkDatabaseConnection')) {
+                $this->core->checkDatabaseConnection();
+            }
+
+            $job = json_decode($message->getBody());
+            $this->manager->handle($job);
+            $consumer->acknowledge($message);
+        } catch (\Exception $e) {
+            $this->core->output('<red>Error processing message: ' . $e->getMessage() . '</red>');
+            // Reject the message so it can be requeued or sent to dead letter queue
+            $consumer->reject($message, false);
+        }
 
         return true;
     }
